@@ -28,6 +28,16 @@
           <img id="src-preview" alt="原图预览" hidden>
           <span id="drop-hint">点击选择、拖入或粘贴图片</span>
         </label>
+        <div class="btn-row src-actions">
+          <button type="button" id="btn-ai-cut" disabled title="用 AI 去掉背景，只保留人物或主体">✨ AI 抠图</button>
+          <button type="button" id="btn-compose" disabled title="添加多张图片，叠在一起拼成一张">图层拼接…</button>
+        </div>
+        <div class="ai-status" hidden>
+          <div class="ai-bar"><span></span></div>
+          <span class="ai-text"></span>
+          <button type="button" class="ai-cancel">取消</button>
+        </div>
+        <p class="hint">AI 在你的浏览器里运行，图片不会上传。第一次使用需要下载约 56 MB 的模型，之后会缓存。</p>
       </section>
 
       <section>
@@ -326,6 +336,60 @@
         <button type="button" id="btn-open-text" class="primary">打开粘贴的内容</button>
       </menu>
     </form>
+  </dialog>
+
+  <dialog id="dlg-compose" class="compose">
+    <div class="compose-wrap">
+      <header class="compose-head">
+        <h3>图层拼接</h3>
+        <div class="seg" role="group" aria-label="合成工具">
+          <button type="button" data-ctool="move" class="active" title="拖动移动；滚轮或双指缩放，双指也能旋转">✋ 移动</button>
+          <button type="button" data-ctool="erase" title="擦掉选中图层的一部分">🩹 擦除</button>
+          <button type="button" data-ctool="restore" title="把擦掉或抠掉的部分画回来">🖌 恢复</button>
+        </div>
+        <button type="button" id="btn-compose-done" class="primary">完成</button>
+      </header>
+      <div class="compose-stage"><canvas id="compose-canvas"></canvas></div>
+      <aside class="compose-side">
+        <div class="ai-status" hidden>
+          <div class="ai-bar"><span></span></div>
+          <span class="ai-text"></span>
+          <button type="button" class="ai-cancel">取消</button>
+        </div>
+        <section>
+          <div class="side-title">
+            <h4>图层</h4>
+            <button type="button" id="btn-layer-add">＋ 添加图片</button>
+            <input type="file" id="file-layer" accept="image/*" multiple hidden>
+          </div>
+          <ul id="layer-list"></ul>
+        </section>
+        <section id="layer-props">
+          <div class="btn-row">
+            <button type="button" id="btn-layer-cut">✨ AI 抠图</button>
+            <button type="button" id="btn-layer-unmask">还原原图</button>
+            <button type="button" id="btn-layer-center">居中</button>
+          </div>
+          <div class="field slider">
+            <label for="lp-scale">缩放 <output id="out-lp-scale">100%</output></label>
+            <input type="range" id="lp-scale" min="2" max="400" value="100">
+          </div>
+          <div class="field slider">
+            <label for="lp-rotate">旋转 <output id="out-lp-rotate">0°</output></label>
+            <input type="range" id="lp-rotate" min="-180" max="180" value="0">
+          </div>
+          <label class="check"><input type="checkbox" id="lp-flip"> 水平翻转</label>
+          <div class="field slider" id="row-brush">
+            <label for="lp-brush">画笔大小 <output id="out-lp-brush">24</output></label>
+            <input type="range" id="lp-brush" min="4" max="80" value="24">
+          </div>
+        </section>
+        <p class="hint">
+          点图层选中，拖动移动。想把一张图的衣服穿到另一张图的人物身上：两张都抠图，用「擦除」只留下衣服，再拖到人物身上、调整大小。
+          画布大小以第一张图片为准。
+        </p>
+      </aside>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
