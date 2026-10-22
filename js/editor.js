@@ -35,6 +35,34 @@ function rectCells(a, b, filled) {
   return pts;
 }
 
+// 椭圆：以拖拽框为外接矩形；描边取填充区域的边界格
+function ellipseCells(a, b, filled) {
+  const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+  const y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const rx = (x1 - x0) / 2 + 0.5, ry = (y1 - y0) / 2 + 0.5;
+  const inside = (x, y) => {
+    const dx = (x - cx) / rx, dy = (y - cy) / ry;
+    return dx * dx + dy * dy <= 1;
+  };
+  const pts = [];
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (!inside(x, y)) continue;
+      if (filled || !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) pts.push([x, y]);
+    }
+  }
+  return pts;
+}
+
+// 笔刷：从落点向右下扩展成 N×N 方块
+function brushCells(pts, n) {
+  if (n <= 1) return pts;
+  const out = [];
+  for (const [x, y] of pts) for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) out.push([x + dx, y + dy]);
+  return out;
+}
+
 export class Editor {
   constructor(canvas, hooks = {}) {
     this.canvas = canvas;
@@ -49,7 +77,7 @@ export class Editor {
     this.tool = 'pencil';
     this.prevTool = 'pencil';
     this.view = { s: 16, ox: 0, oy: 0 };
-    this.opts = { grid: true, codes: false, boardSize: 29, mirrorX: false, mirrorY: false };
+    this.opts = { grid: true, codes: false, boardSize: 29, mirrorX: false, mirrorY: false, brush: 1 };
     this.highlight = null;
 
     this.undoStack = [];
@@ -397,7 +425,7 @@ export class Editor {
     if (a && a.type === 'shape') {
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = cols[a.v]?.hex || '#000';
-      for (const [x, y] of this._mirrored(this._shapeCells(a))) {
+      for (const [x, y] of this._mirrored(this._shapeCells(a, true))) {
         if (x >= 0 && y >= 0 && x < W && y < H) ctx.fillRect(ox + x * s, oy + y * s, s, s);
       }
       ctx.globalAlpha = 1;
@@ -485,7 +513,8 @@ export class Editor {
     if (h && h.x >= 0 && h.y >= 0 && h.x < W && h.y < H) {
       ctx.lineWidth = Math.max(1.5, Math.min(3, s / 8));
       ctx.strokeStyle = this.theme.accent;
-      ctx.strokeRect(ox + h.x * s, oy + h.y * s, s, s);
+      const fp = this.tool === 'pencil' || this.tool === 'eraser' ? this.opts.brush : 1;
+      ctx.strokeRect(ox + h.x * s, oy + h.y * s, s * fp, s * fp);
       if (this.opts.mirrorX || this.opts.mirrorY) {
         ctx.globalAlpha = 0.5;
         for (const [mx, my] of this._mirrored([[h.x, h.y]]).slice(1)) ctx.strokeRect(ox + mx * s, oy + my * s, s, s);
@@ -578,13 +607,14 @@ export class Editor {
       case 'eraser': {
         const v = tool === 'eraser' ? -1 : this.color;
         this.beginHistory();
-        this._paint([[cell.x, cell.y]], v);
+        this._paint(brushCells([[cell.x, cell.y]], this.opts.brush), v);
         this.action = { type: 'draw', v, last: cell };
         break;
       }
       case 'line':
       case 'rect':
-        this.action = { type: 'shape', tool, start: cell, end: cell, v: this.color, filled: e.shiftKey };
+      case 'ellipse':
+        this.action = { type: 'shape', tool, start: cell, end: cell, v: this.color, filled: tool !== 'line' && e.shiftKey };
         this.requestRender();
         break;
       case 'bucket':
@@ -633,11 +663,11 @@ export class Editor {
     if (moved) this.hooks.onHover?.(this._inBounds(cell) ? { ...cell, v: this.cells[cell.y * this.width + cell.x] } : null);
 
     if (a && a.type === 'draw' && moved) {
-      this._paint(lineCells(a.last.x, a.last.y, cell.x, cell.y), a.v);
+      this._paint(brushCells(lineCells(a.last.x, a.last.y, cell.x, cell.y), this.opts.brush), a.v);
       a.last = cell;
     } else if (a && a.type === 'shape') {
       a.end = cell;
-      a.filled = e.shiftKey;
+      a.filled = a.tool !== 'line' && e.shiftKey;
     }
     if (moved || a) this.requestRender();
   }
@@ -653,7 +683,7 @@ export class Editor {
     if (a.type === 'draw') this.endHistory('edit');
     if (a.type === 'shape' && !cancelled) {
       this.beginHistory();
-      this._paint(this._shapeCells(a), a.v);
+      this._paint(this._shapeCells(a, true), a.v);
       this.endHistory('edit');
     }
     if (a.type === 'pan') this.canvas.classList.remove('grabbing');
@@ -674,8 +704,13 @@ export class Editor {
     this.requestRender();
   }
 
-  _shapeCells(a) {
-    return a.tool === 'line' ? lineCells(a.start.x, a.start.y, a.end.x, a.end.y) : rectCells(a.start, a.end, a.filled);
+  _shapeCells(a, withBrush = false) {
+    let pts;
+    if (a.tool === 'line') pts = lineCells(a.start.x, a.start.y, a.end.x, a.end.y);
+    else if (a.tool === 'rect') pts = rectCells(a.start, a.end, a.filled);
+    else pts = ellipseCells(a.start, a.end, a.filled);
+    // 实心图形忽略笔刷
+    return withBrush && !a.filled ? brushCells(pts, this.opts.brush) : pts;
   }
 
   _mirrored(pts) {

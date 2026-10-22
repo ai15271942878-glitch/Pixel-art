@@ -1,4 +1,4 @@
-import { PALETTES, preparePalette, parsePaletteText, paletteToText } from './palettes.js';
+import { PALETTES, DEFAULT_PALETTE, preparePalette, parsePaletteText, paletteToText } from './palettes.js';
 import { Editor } from './editor.js';
 import { convertImage } from './convert.js';
 import {
@@ -238,6 +238,12 @@ $('toolbar').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tool]');
   if (b) editor.setTool(b.dataset.tool);
 });
+const BRUSHES = [1, 2, 4, 8];
+function setBrush(n) {
+  editor.setOption('brush', n);
+  $('brush-size').value = String(n);
+}
+$('brush-size').onchange = (e) => setBrush(+e.target.value);
 $('btn-undo').onclick = () => editor.undo();
 $('btn-redo').onclick = () => editor.redo();
 $('btn-zoom-in').onclick = () => editor.zoomBy(1.25);
@@ -453,6 +459,8 @@ $('btn-export').onclick = () => $('dlg-export').showModal();
 $('btn-exp-pattern').onclick = () => {
   const c = renderPattern(editor, {
     cell: Math.max(8, Math.min(60, +$('exp-cell').value || 26)),
+    countLines: $('exp-lines').value,
+    maxSide: $('exp-cap').checked ? 2048 : 0,
     codes: $('exp-codes').checked,
     legend: $('exp-legend').checked,
     boardSize: editor.opts.boardSize,
@@ -512,18 +520,20 @@ $('btn-pal-save').onclick = () => {
 };
 $('btn-pal-delete').onclick = () => {
   const id = $('dlg-palette').dataset.editing;
-  if (!id || !confirm('确定删除这个自定义色卡吗？画布上的颜色会换成通用色卡里最接近的颜色。')) return;
+  if (!id || !confirm('确定删除这个自定义色卡吗？画布上的颜色会换成 MARD 221 色里最接近的颜色。')) return;
   delete customPalettes[id];
   preparedCache.delete(id);
   store.set(KEY_PALETTES, customPalettes);
-  editor.remapPalette(getPalette('basic'));
+  editor.remapPalette(getPalette(DEFAULT_PALETTE));
   fillPaletteSelect();
   $('dlg-palette').close();
 };
 
 // ---------- 快捷键 ----------
 
-const toolKeys = { b: 'pencil', p: 'pencil', e: 'eraser', g: 'bucket', i: 'eyedropper', l: 'line', r: 'rect', h: 'hand' };
+const toolKeys = {
+  b: 'pencil', p: 'pencil', e: 'eraser', g: 'bucket', i: 'eyedropper', l: 'line', r: 'rect', o: 'ellipse', h: 'hand',
+};
 
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea, dialog')) return;
@@ -548,6 +558,10 @@ window.addEventListener('keydown', (e) => {
     else if (k === '-') editor.zoomBy(0.8);
     else if (k === '0') editor.fit();
     else if (k === '#') $('disp-grid').click();
+    else if (k === '[' || k === ']') {
+      const i = BRUSHES.indexOf(editor.opts.brush) + (k === ']' ? 1 : -1);
+      setBrush(BRUSHES[Math.max(0, Math.min(BRUSHES.length - 1, i))]);
+    }
   }
 });
 window.addEventListener('keyup', (e) => {
@@ -583,7 +597,7 @@ function start() {
     }
   }
   if (!restored) {
-    editor.load({ width: 29, height: 29, cells: new Int16Array(29 * 29).fill(-1), palette: getPalette('perler') });
+    editor.load({ width: 29, height: 29, cells: new Int16Array(29 * 29).fill(-1), palette: getPalette(DEFAULT_PALETTE) });
   }
   fillPaletteSelect();
   updateToolButtons(editor.tool);

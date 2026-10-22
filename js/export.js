@@ -30,24 +30,44 @@ export function renderPNG(doc, scale) {
   return c;
 }
 
-// 打印用图纸：格子 + 色号 + 坐标尺 + 拼豆板分界 + 用料清单
-export function renderPattern(doc, { cell = 24, codes = true, legend = true, boardSize = 29 } = {}) {
+// 计数线位置（格子边界下标，含外框）。center10：从中心向两边每 10 格一条；every5：从左上角每 5 格一条
+export function countLineBounds(n, mode) {
+  const set = new Set([0, n]);
+  if (mode === 'every5') {
+    for (let i = 5; i < n; i += 5) set.add(i);
+  } else if (mode === 'center10') {
+    const c = Math.floor(n / 2);
+    set.add(c);
+    for (let i = c + 10; i < n; i += 10) set.add(i);
+    for (let i = c - 10; i > 0; i -= 10) set.add(i);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+// 打印用图纸：四边序号带 + 格子色号 + 计数线 + 拼豆板分界 + 用料清单
+export function renderPattern(doc, {
+  cell = 26, codes = true, legend = true, boardSize = 29, countLines = 'center10', maxSide = 0,
+} = {}) {
   const { width: W, height: H, cells } = doc;
   const cols = doc.palette.colors;
   const counts = countCells(cells);
   const used = [...counts.entries()].sort((a, b) => b[1] - a[1]);
   const total = used.reduce((s, [, n]) => s + n, 0);
 
-  const cs = Math.max(6, Math.min(cell, Math.floor(12000 / Math.max(W, H))));
-  const ruler = 30;
-  const pad = 24;
-  const titleH = 46;
-  const gridW = W * cs, gridH = H * cs;
-  const width = Math.max(pad * 2 + ruler * 2 + gridW, 640);
-  const itemW = 200, itemH = 30;
-  const legendCols = Math.max(1, Math.floor((width - pad * 2) / itemW));
-  const legendH = legend && used.length ? 44 + Math.ceil(used.length / legendCols) * itemH : 0;
-  const height = pad + titleH + ruler * 2 + gridH + legendH + pad;
+  const plan = (cs) => {
+    const ruler = Math.max(18, Math.round(cs * 1.1));
+    const pad = 20, titleH = 46, itemW = 180, itemH = 30;
+    const gridW = W * cs, gridH = H * cs;
+    const width = Math.max(pad * 2 + ruler * 2 + gridW, 560);
+    const legendCols = Math.max(1, Math.floor((width - pad * 2) / itemW));
+    const legendH = legend && used.length ? 40 + Math.ceil(used.length / legendCols) * itemH : 0;
+    const height = pad + titleH + ruler * 2 + gridH + legendH + pad;
+    return { cs, ruler, pad, titleH, itemW, itemH, gridW, gridH, width, height, legendCols, legendH };
+  };
+  let L = plan(Math.max(6, Math.min(cell, Math.floor(12000 / Math.max(W, H)))));
+  // 限制最长边：先缩小格子，实在放不下再整体缩图
+  while (maxSide && L.cs > 6 && Math.max(L.width, L.height) > maxSide) L = plan(L.cs - 1);
+  const { cs, ruler, pad, titleH, itemW, itemH, gridW, gridH, width, height, legendCols, legendH } = L;
 
   const c = document.createElement('canvas');
   c.width = width;
@@ -63,14 +83,17 @@ export function renderPattern(doc, { cell = 24, codes = true, legend = true, boa
   ctx.fillText('拼豆图纸', pad, pad + 14);
   ctx.font = '14px system-ui, sans-serif';
   ctx.fillStyle = '#555';
-  ctx.fillText(
-    `${W} × ${H} 格 · 共 ${total} 颗 · ${used.length} 种颜色 · 色卡：${doc.palette.name}`,
-    pad,
-    pad + 36,
-  );
+  ctx.fillText(`${W} × ${H} 格 · 共 ${total} 颗 · ${used.length} 种颜色 · 色卡：${doc.palette.name}`, pad, pad + 36, width - pad * 2);
 
   const gx = Math.round((width - gridW) / 2);
   const gy = pad + titleH + ruler;
+
+  // 序号带
+  ctx.fillStyle = '#D6EBF8';
+  ctx.fillRect(gx - ruler, gy - ruler, gridW + ruler * 2, ruler);
+  ctx.fillRect(gx - ruler, gy + gridH, gridW + ruler * 2, ruler);
+  ctx.fillRect(gx - ruler, gy, ruler, gridH);
+  ctx.fillRect(gx + gridW, gy, ruler, gridH);
 
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
@@ -81,57 +104,72 @@ export function renderPattern(doc, { cell = 24, codes = true, legend = true, boa
     }
   }
 
-  if (codes && cs >= 14) {
+  // 色号：尽量大，放不下时按宽度缩小
+  if (codes && cs >= 12) {
     ctx.textAlign = 'center';
+    const sizeFor = new Map();
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const v = cells[y * W + x];
         if (v < 0) continue;
         const code = cols[v].code;
-        ctx.font = `600 ${Math.floor(cs * (code.length > 3 ? 0.3 : 0.36))}px system-ui, sans-serif`;
+        let px = sizeFor.get(code);
+        if (px === undefined) {
+          px = Math.min(28, cs * 0.5);
+          ctx.font = `700 ${px}px system-ui, sans-serif`;
+          const w = ctx.measureText(code).width;
+          if (w > cs * 0.9) px *= (cs * 0.9) / w;
+          sizeFor.set(code, px);
+        }
+        ctx.font = `700 ${px}px system-ui, sans-serif`;
         ctx.fillStyle = cols[v].text;
-        ctx.fillText(code, gx + (x + 0.5) * cs, gy + (y + 0.5) * cs + 0.5, cs - 2);
+        ctx.fillText(code, gx + (x + 0.5) * cs, gy + (y + 0.5) * cs + 0.5);
       }
     }
   }
 
-  const line = (x0, y0, x1, y1) => {
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
-  };
-  for (const [step, color, lw] of [
-    [1, 'rgba(0,0,0,0.18)', 1],
-    [5, 'rgba(0,0,0,0.45)', 1],
-    [boardSize, 'rgba(220,40,60,0.9)', 2],
-  ]) {
-    if (!step || step < 1) continue;
+  const vline = (x, color, lw) => {
     ctx.strokeStyle = color;
     ctx.lineWidth = lw;
-    for (let x = step; x < W; x += step) line(gx + x * cs + 0.5, gy, gx + x * cs + 0.5, gy + gridH);
-    for (let y = step; y < H; y += step) line(gx, gy + y * cs + 0.5, gx + gridW, gy + y * cs + 0.5);
+    ctx.beginPath();
+    ctx.moveTo(gx + x * cs, gy);
+    ctx.lineTo(gx + x * cs, gy + gridH);
+    ctx.stroke();
+  };
+  const hline = (y, color, lw) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy + y * cs);
+    ctx.lineTo(gx + gridW, gy + y * cs);
+    ctx.stroke();
+  };
+  for (let x = 1; x < W; x++) vline(x + 0.5 / cs, 'rgba(0,0,0,0.18)', 1);
+  for (let y = 1; y < H; y++) hline(y + 0.5 / cs, 'rgba(0,0,0,0.18)', 1);
+  for (const x of countLineBounds(W, countLines)) vline(x, '#000', 2);
+  for (const y of countLineBounds(H, countLines)) hline(y, '#000', 2);
+  if (boardSize > 0) {
+    for (let x = boardSize; x < W; x += boardSize) vline(x, 'rgba(220,40,60,0.9)', 2);
+    for (let y = boardSize; y < H; y += boardSize) hline(y, 'rgba(220,40,60,0.9)', 2);
   }
-  ctx.strokeStyle = '#111';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(gx, gy, gridW, gridH);
 
-  // 坐标尺（四边都标，方便对照）
-  ctx.fillStyle = '#444';
+  // 序号（行列都从 1 开始，四边都标，方便对照）
+  ctx.fillStyle = '#1D4E70';
   ctx.textAlign = 'center';
-  ctx.font = `${Math.min(11, Math.max(8, cs * 0.45))}px system-ui, sans-serif`;
+  ctx.font = `600 ${Math.min(14, Math.max(8, cs * 0.45))}px system-ui, sans-serif`;
   const every = cs >= 16 ? 1 : 5;
+  const labelled = (i) => every === 1 || i === 0 || (i + 1) % every === 0;
   for (let x = 0; x < W; x++) {
-    if ((x + 1) % every && x) continue;
+    if (!labelled(x)) continue;
     const tx = gx + (x + 0.5) * cs;
-    ctx.fillText(String(x + 1), tx, gy - ruler / 2);
-    ctx.fillText(String(x + 1), tx, gy + gridH + ruler / 2);
+    ctx.fillText(String(x + 1), tx, gy - ruler / 2, cs * every);
+    ctx.fillText(String(x + 1), tx, gy + gridH + ruler / 2, cs * every);
   }
   for (let y = 0; y < H; y++) {
-    if ((y + 1) % every && y) continue;
+    if (!labelled(y)) continue;
     const ty = gy + (y + 0.5) * cs;
-    ctx.fillText(String(y + 1), gx - ruler / 2, ty);
-    ctx.fillText(String(y + 1), gx + gridW + ruler / 2, ty);
+    ctx.fillText(String(y + 1), gx - ruler / 2, ty, ruler - 2);
+    ctx.fillText(String(y + 1), gx + gridW + ruler / 2, ty, ruler - 2);
   }
 
   if (legendH) {
@@ -146,19 +184,30 @@ export function renderPattern(doc, { cell = 24, codes = true, legend = true, boa
       const x = pad + (k % legendCols) * itemW;
       const y = ly + Math.floor(k / legendCols) * itemH;
       ctx.fillStyle = col.hex;
-      ctx.fillRect(x, y, 34, 22);
+      ctx.fillRect(x, y, 38, 24);
       ctx.strokeStyle = 'rgba(0,0,0,0.3)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, 33, 21);
+      ctx.strokeRect(x + 0.5, y + 0.5, 37, 23);
       ctx.fillStyle = col.text;
       ctx.textAlign = 'center';
-      ctx.font = '600 10px system-ui, sans-serif';
-      ctx.fillText(col.code, x + 17, y + 11.5, 32);
+      ctx.font = '700 12px system-ui, sans-serif';
+      ctx.fillText(col.code, x + 19, y + 12.5, 36);
       ctx.textAlign = 'left';
       ctx.fillStyle = '#222';
       ctx.font = '13px system-ui, sans-serif';
-      ctx.fillText(`${col.name}  × ${n}`, x + 42, y + 11.5, itemW - 50);
+      ctx.fillText(`${col.name}  × ${n}`, x + 46, y + 12.5, itemW - 52);
     });
+  }
+
+  if (maxSide && Math.max(width, height) > maxSide) {
+    const k = maxSide / Math.max(width, height);
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(width * k));
+    out.height = Math.max(1, Math.round(height * k));
+    const octx = out.getContext('2d');
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(c, 0, 0, out.width, out.height);
+    return out;
   }
   return c;
 }

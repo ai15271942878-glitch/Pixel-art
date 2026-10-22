@@ -1,10 +1,16 @@
 // 内置色卡。每项为 [编号, 名称, 色值]。
-// 注意：品牌色卡的色值是按公开资料整理的近似值，实物颜色以厂商色卡为准，
+// 注意：品牌色卡的色值都是屏幕上的参考值，实物颜色以厂商色卡为准，
 // 需要精确匹配时请通过「导入色卡」使用你手上实物校准过的色值。
 
 import { hexToRgb, rgbToLab, isHex } from './color.js';
+import { MARD_221, MARD_144, MARD_24 } from './palettes-mard.js';
+
+export const DEFAULT_PALETTE = 'mard221';
 
 export const PALETTES = {
+  mard221: { name: 'MARD 221 色（全套）', colors: MARD_221 },
+  mard144: { name: 'MARD 144 色', colors: MARD_144 },
+  mard24: { name: 'MARD 24 色（入门）', colors: MARD_24 },
   basic: {
     name: '通用 48 色',
     colors: [

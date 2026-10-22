@@ -91,7 +91,19 @@
           <button data-tool="eyedropper" title="吸管 (I)；也可按住 Alt 点击">💧<span>吸管</span></button>
           <button data-tool="line" title="直线 (L)">📏<span>直线</span></button>
           <button data-tool="rect" title="矩形 (R)；按住 Shift 画实心">⬜<span>矩形</span></button>
+          <button data-tool="ellipse" title="圆 / 椭圆 (O)；按住 Shift 画实心">⭕<span>椭圆</span></button>
           <button data-tool="hand" title="移动画布 (H)；也可按住空格拖动">✋<span>移动</span></button>
+        </div>
+        <div class="group">
+          <label class="brush" title="笔刷大小，[ 和 ] 切换；从落点向右下扩展，作用于铅笔、橡皮和描边图形">
+            笔刷
+            <select id="brush-size">
+              <option value="1">1×1</option>
+              <option value="2">2×2</option>
+              <option value="4">4×4</option>
+              <option value="8">8×8</option>
+            </select>
+          </label>
         </div>
         <div class="group">
           <button id="btn-undo" title="撤销 (Ctrl+Z)">↶</button>
@@ -223,6 +235,15 @@
         </div>
         <label class="check"><input type="checkbox" id="exp-codes" checked> 格子里标色号</label>
         <label class="check"><input type="checkbox" id="exp-legend" checked> 附带用料清单</label>
+        <div class="field inline">
+          <label for="exp-lines">黑色计数线</label>
+          <select id="exp-lines">
+            <option value="center10">从中心向外每 10 格</option>
+            <option value="every5">从左上角每 5 格</option>
+            <option value="none">只画外框</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="exp-cap"> 最长边不超过 2048 像素（发小红书等平台不会被压糊）</label>
         <button type="button" id="btn-exp-pattern" class="primary block">导出图纸 PNG</button>
       </fieldset>
       <fieldset>
@@ -246,7 +267,7 @@
       <h3>导入 / 管理色卡</h3>
       <p class="hint">
         每行一种颜色：<code>色号,#色值,名称</code>，也可以用空格或 Tab 分隔，只写色值也行。<br>
-        例如：<code>A1,#FAF4E8,奶白</code>。建议用实物色卡拍照取色后校准。
+        例如：<code>W01,#FAF4E8,我的奶白</code>。建议用实物色卡拍照取色后校准。
       </p>
       <div class="field">
         <label for="pal-name">色卡名称</label>

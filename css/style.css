@@ -164,6 +164,8 @@ textarea { width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace; f
 .toolbar .group { display: flex; gap: 3px; }
 .toolbar button { padding: 4px 8px; font-size: 15px; line-height: 1.2; }
 .toolbar button span { font-size: 12px; margin-left: 3px; }
+.toolbar .brush { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.toolbar .brush select { padding: 3px 4px; }
 
 .canvas-wrap {
   position: relative;
