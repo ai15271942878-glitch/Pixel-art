@@ -77,7 +77,7 @@ export class Editor {
     this.tool = 'pencil';
     this.prevTool = 'pencil';
     this.view = { s: 16, ox: 0, oy: 0 };
-    this.opts = { grid: true, codes: false, boardSize: 29, mirrorX: false, mirrorY: false, brush: 1 };
+    this.opts = { grid: true, codes: false, boardSize: 0, mirrorX: false, mirrorY: false, brush: 1 };
     this.highlight = null;
 
     this.undoStack = [];

@@ -78,6 +78,7 @@
         <label class="check"><input type="checkbox" id="opt-dither"> 抖动（照片过渡更细腻）</label>
 
         <button id="btn-convert" class="primary block" disabled>生成像素图</button>
+        <button id="btn-reset-opts" class="block" title="亮度、对比度、饱和度、颜色数和各项开关恢复默认，尺寸和色卡不变">恢复默认参数</button>
         <p class="hint" id="convert-hint">生成后、动手编辑之前，调整参数会实时刷新画布。</p>
       </section>
     </aside>
@@ -154,10 +155,10 @@
         <div class="field inline">
           <label for="disp-board">拼豆板分界</label>
           <select id="disp-board">
-            <option value="0">不显示</option>
+            <option value="0" selected>不显示</option>
             <option value="10">10 × 10</option>
             <option value="14">14 × 14</option>
-            <option value="29" selected>29 × 29</option>
+            <option value="29">29 × 29</option>
             <option value="50">50 × 50</option>
             <option value="52">52 × 52</option>
           </select>
