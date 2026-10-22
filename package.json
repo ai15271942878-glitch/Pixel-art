@@ -1,0 +1,9 @@
+{
+  "name": "bead-pixel-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "把图片转换成拼豆像素图，并逐格精确编辑、统计用料、导出图纸",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

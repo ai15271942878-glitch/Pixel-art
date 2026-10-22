@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>拼豆像素工坊</title>
+  <meta name="description" content="把图片转换成拼豆像素图，并逐格精确编辑、统计用料、导出图纸。">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>拼豆像素工坊</h1>
+    <nav class="top-actions">
+      <button id="btn-new">新建</button>
+      <button id="btn-open">打开项目</button>
+      <button id="btn-save" title="Ctrl+S">保存项目</button>
+      <button id="btn-export" class="primary">导出…</button>
+      <input type="file" id="file-project" accept=".json,application/json" hidden>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="panel left">
+      <section>
+        <h2>1 · 导入图片</h2>
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="file-image" accept="image/*" hidden>
+          <img id="src-preview" alt="原图预览" hidden>
+          <span id="drop-hint">点击选择、拖入或粘贴图片</span>
+        </label>
+      </section>
+
+      <section>
+        <h2>2 · 转换设置</h2>
+        <div class="field">
+          <label for="opt-width">宽 × 高（颗）</label>
+          <div class="pair">
+            <input type="number" id="opt-width" min="1" max="300" value="29">
+            <span>×</span>
+            <input type="number" id="opt-height" min="1" max="300" value="29">
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="opt-lock" checked> 按原图比例自动算高度</label>
+
+        <div class="field">
+          <label for="opt-palette">色卡</label>
+          <select id="opt-palette"></select>
+        </div>
+        <div class="field-actions">
+          <button id="btn-palette-manage" class="link">导入 / 管理色卡</button>
+        </div>
+
+        <div class="field">
+          <label for="opt-maxcolors">最多使用颜色数</label>
+          <input type="number" id="opt-maxcolors" min="0" max="300" value="0">
+          <small>0 表示不限制。限制颜色能减少要买的豆子种类。</small>
+        </div>
+
+        <div class="field slider">
+          <label for="opt-brightness">亮度 <output id="out-brightness">0</output></label>
+          <input type="range" id="opt-brightness" min="-100" max="100" value="0">
+        </div>
+        <div class="field slider">
+          <label for="opt-contrast">对比度 <output id="out-contrast">0</output></label>
+          <input type="range" id="opt-contrast" min="-100" max="100" value="0">
+        </div>
+        <div class="field slider">
+          <label for="opt-saturation">饱和度 <output id="out-saturation">0</output></label>
+          <input type="range" id="opt-saturation" min="-100" max="100" value="0">
+        </div>
+
+        <label class="check"><input type="checkbox" id="opt-removebg"> 去除背景（从边缘识别）</label>
+        <div class="field slider" id="row-bgtol">
+          <label for="opt-bgtol">背景容差 <output id="out-bgtol">12</output></label>
+          <input type="range" id="opt-bgtol" min="1" max="60" value="12">
+        </div>
+        <label class="check"><input type="checkbox" id="opt-cleanup"> 清除孤立杂点</label>
+        <label class="check"><input type="checkbox" id="opt-dither"> 抖动（照片过渡更细腻）</label>
+
+        <button id="btn-convert" class="primary block" disabled>生成像素图</button>
+        <p class="hint" id="convert-hint">生成后、动手编辑之前，调整参数会实时刷新画布。</p>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="toolbar" id="toolbar">
+        <div class="group" role="group" aria-label="工具">
+          <button data-tool="pencil" title="铅笔 (B)">✏️<span>铅笔</span></button>
+          <button data-tool="eraser" title="橡皮 (E)；也可用鼠标右键">🩹<span>橡皮</span></button>
+          <button data-tool="bucket" title="填充 (G)；按住 Shift 替换全部同色">🪣<span>填充</span></button>
+          <button data-tool="eyedropper" title="吸管 (I)；也可按住 Alt 点击">💧<span>吸管</span></button>
+          <button data-tool="line" title="直线 (L)">📏<span>直线</span></button>
+          <button data-tool="rect" title="矩形 (R)；按住 Shift 画实心">⬜<span>矩形</span></button>
+          <button data-tool="hand" title="移动画布 (H)；也可按住空格拖动">✋<span>移动</span></button>
+        </div>
+        <div class="group">
+          <button id="btn-undo" title="撤销 (Ctrl+Z)">↶</button>
+          <button id="btn-redo" title="重做 (Ctrl+Shift+Z)">↷</button>
+        </div>
+        <div class="group">
+          <button id="btn-mirror-x" class="toggle" title="左右对称绘制">⇆ 对称</button>
+          <button id="btn-mirror-y" class="toggle" title="上下对称绘制">⇅ 对称</button>
+        </div>
+        <div class="group">
+          <button id="btn-zoom-out" title="缩小 (-)">－</button>
+          <button id="btn-fit" title="适应窗口 (0)">适应</button>
+          <button id="btn-zoom-in" title="放大 (+)">＋</button>
+        </div>
+      </div>
+      <div class="canvas-wrap" id="canvas-wrap">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div class="statusbar">
+        <span id="st-pos">—</span>
+        <span id="st-size"></span>
+        <span id="st-zoom"></span>
+        <span id="st-total"></span>
+      </div>
+    </section>
+
+    <aside class="panel right">
+      <section>
+        <h2>颜色</h2>
+        <div class="current-color">
+          <div class="swatch big" id="cur-swatch"></div>
+          <div>
+            <div class="cur-code" id="cur-code"></div>
+            <div class="cur-name" id="cur-name"></div>
+          </div>
+        </div>
+        <div class="palette-filter">
+          <input type="search" id="palette-search" placeholder="搜索色号 / 名称">
+          <label class="check"><input type="checkbox" id="palette-used"> 只看已用</label>
+        </div>
+        <div class="palette-grid" id="palette-grid"></div>
+      </section>
+
+      <section>
+        <h2>显示</h2>
+        <label class="check"><input type="checkbox" id="disp-grid" checked> 网格线 (#)</label>
+        <label class="check"><input type="checkbox" id="disp-codes"> 在格子里显示色号</label>
+        <div class="field inline">
+          <label for="disp-board">拼豆板分界</label>
+          <select id="disp-board">
+            <option value="0">不显示</option>
+            <option value="10">10 × 10</option>
+            <option value="14">14 × 14</option>
+            <option value="29" selected>29 × 29</option>
+            <option value="50">50 × 50</option>
+            <option value="52">52 × 52</option>
+          </select>
+        </div>
+      </section>
+
+      <section>
+        <h2>画布</h2>
+        <div class="field">
+          <label for="size-w">尺寸（颗）</label>
+          <div class="pair">
+            <input type="number" id="size-w" min="1" max="300">
+            <span>×</span>
+            <input type="number" id="size-h" min="1" max="300">
+          </div>
+        </div>
+        <div class="field inline">
+          <label for="size-anchor">内容对齐</label>
+          <select id="size-anchor">
+            <option value="center">居中</option>
+            <option value="tl">左上角</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button id="btn-resize">调整尺寸</button>
+        </div>
+        <div class="btn-row">
+          <button id="btn-flip-h" title="水平翻转">⇆ 翻转</button>
+          <button id="btn-flip-v" title="垂直翻转">⇅ 翻转</button>
+        </div>
+        <div class="btn-row nudge">
+          <span>平移内容</span>
+          <button data-shift="-1,0" title="左移一格">←</button>
+          <button data-shift="0,-1" title="上移一格">↑</button>
+          <button data-shift="0,1" title="下移一格">↓</button>
+          <button data-shift="1,0" title="右移一格">→</button>
+        </div>
+      </section>
+
+      <section class="stats">
+        <h2>用料统计 <small id="stats-sum"></small></h2>
+        <p class="hint">点击某一行可以高亮这种颜色，方便逐色拼豆；⇄ 把这种颜色全部换成当前颜色。</p>
+        <ul id="stats-list"></ul>
+      </section>
+    </aside>
+  </main>
+
+  <dialog id="dlg-new">
+    <form method="dialog">
+      <h3>新建空白画布</h3>
+      <div class="field">
+        <label for="new-w">尺寸（颗）</label>
+        <div class="pair">
+          <input type="number" id="new-w" min="1" max="300" value="29">
+          <span>×</span>
+          <input type="number" id="new-h" min="1" max="300" value="29">
+        </div>
+      </div>
+      <p class="hint">新建可以撤销，不会丢失当前作品。</p>
+      <menu>
+        <button value="cancel">取消</button>
+        <button value="ok" class="primary">新建</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-export">
+    <form method="dialog">
+      <h3>导出</h3>
+      <fieldset>
+        <legend>拼豆图纸（适合打印）</legend>
+        <div class="field inline">
+          <label for="exp-cell">每格像素</label>
+          <input type="number" id="exp-cell" min="8" max="60" value="26">
+        </div>
+        <label class="check"><input type="checkbox" id="exp-codes" checked> 格子里标色号</label>
+        <label class="check"><input type="checkbox" id="exp-legend" checked> 附带用料清单</label>
+        <button type="button" id="btn-exp-pattern" class="primary block">导出图纸 PNG</button>
+      </fieldset>
+      <fieldset>
+        <legend>像素图</legend>
+        <div class="field inline">
+          <label for="exp-scale">放大倍数</label>
+          <input type="number" id="exp-scale" min="1" max="64" value="10">
+        </div>
+        <button type="button" id="btn-exp-png" class="block">导出像素图 PNG</button>
+      </fieldset>
+      <fieldset>
+        <legend>用料清单</legend>
+        <button type="button" id="btn-exp-csv" class="block">导出 CSV</button>
+      </fieldset>
+      <menu><button value="close">关闭</button></menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-palette">
+    <form method="dialog">
+      <h3>导入 / 管理色卡</h3>
+      <p class="hint">
+        每行一种颜色：<code>色号,#色值,名称</code>，也可以用空格或 Tab 分隔，只写色值也行。<br>
+        例如：<code>A1,#FAF4E8,奶白</code>。建议用实物色卡拍照取色后校准。
+      </p>
+      <div class="field">
+        <label for="pal-name">色卡名称</label>
+        <input type="text" id="pal-name" placeholder="例如：我的豆子">
+      </div>
+      <textarea id="pal-text" rows="12" spellcheck="false"></textarea>
+      <p class="error" id="pal-error"></p>
+      <menu>
+        <button type="button" id="btn-pal-load-current">载入当前色卡做底稿</button>
+        <button type="button" id="btn-pal-delete" class="danger">删除当前自定义色卡</button>
+        <span class="spacer"></span>
+        <button value="cancel">取消</button>
+        <button type="button" id="btn-pal-save" class="primary">保存并使用</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
