@@ -1,6 +1,7 @@
 import { PALETTES, DEFAULT_PALETTE, preparePalette, parsePaletteText, paletteToText } from './palettes.js';
 import { Editor } from './editor.js';
 import { convertImage } from './convert.js';
+import { setupLayers } from './layers-ui.js';
 import {
   countCells, renderPNG, renderPattern, downloadBlob, serializeProject, parseProject,
 } from './export.js';
@@ -346,25 +347,29 @@ function autoHeight() {
   $('opt-height').value = clampSize((w * state.image.height) / state.image.width);
 }
 
-async function loadImageFile(file) {
-  if (!file || !file.type.startsWith('image/')) {
-    toast('请选择图片文件');
-    return;
-  }
-  try {
-    state.image = await createImageBitmap(file);
-  } catch {
-    toast('无法读取这张图片');
-    return;
-  }
-  const prev = $('src-preview');
-  if (prev.src) URL.revokeObjectURL(prev.src);
-  prev.src = URL.createObjectURL(file);
-  prev.hidden = false;
-  $('drop-hint').hidden = true;
+// 原图（单张图片，或抠图 / 图层拼接后的合成结果）变了：更新预览并重新生成，这一步可以撤销
+function onSource(canvas) {
+  state.image = canvas;
+  canvas.toBlob((blob) => {
+    const prev = $('src-preview');
+    if (prev.src) URL.revokeObjectURL(prev.src);
+    prev.src = URL.createObjectURL(blob);
+    prev.hidden = false;
+    $('drop-hint').hidden = true;
+  }, 'image/png');
   $('btn-convert').disabled = false;
   autoHeight();
   runConvert('push');
+}
+
+const layers = setupLayers({ $, toast, onSource });
+
+async function loadImageFile(file) {
+  try {
+    await layers.loadFile(file);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 function runConvert(history) {
@@ -434,11 +439,14 @@ window.addEventListener('drop', (e) => {
   const f = e.dataTransfer.files[0];
   if (!f) return;
   if (f.name.endsWith('.json')) openProjectFile(f);
+  else if (layers.isOpen()) layers.addFiles([...e.dataTransfer.files]);
   else loadImageFile(f);
 });
 window.addEventListener('paste', (e) => {
   const item = [...(e.clipboardData?.items || [])].find((it) => it.type.startsWith('image/'));
-  if (item) loadImageFile(item.getAsFile());
+  if (!item) return;
+  if (layers.isOpen()) layers.addFiles([item.getAsFile()]);
+  else loadImageFile(item.getAsFile());
 });
 
 // ---------- 新建 / 打开 / 保存 ----------
@@ -681,6 +689,9 @@ window.addEventListener('blur', () => (editor.spaceDown = false));
 let toastTimer = 0;
 function toast(msg) {
   const t = $('toast');
+  // 打开的对话框在最上层，提示要放进对话框里才看得见
+  const host = document.querySelector('dialog[open]') || document.body;
+  if (t.parentElement !== host) host.append(t);
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
