@@ -26,7 +26,7 @@ const store = {
 
 const KEY_AUTOSAVE = 'beadpixel.autosave';
 const KEY_PALETTES = 'beadpixel.customPalettes';
-const KEY_SETTINGS = 'beadpixel.settings';
+const KEY_SETTINGS = 'beadpixel.settings.v2';
 
 // ---------- 色卡管理 ----------
 
@@ -259,12 +259,19 @@ for (const [id, key] of [['btn-mirror-x', 'mirrorX'], ['btn-mirror-y', 'mirrorY'
 
 // ---------- 显示与画布 ----------
 
-$('disp-grid').onchange = (e) => editor.setOption('grid', e.target.checked);
+$('disp-grid').onchange = (e) => {
+  editor.setOption('grid', e.target.checked);
+  saveSettings();
+};
 $('disp-codes').onchange = (e) => {
   editor.setOption('codes', e.target.checked);
   if (e.target.checked && editor.view.s < 16) toast('放大到每格 16px 以上才会显示色号');
+  saveSettings();
 };
-$('disp-board').onchange = (e) => editor.setOption('boardSize', +e.target.value);
+$('disp-board').onchange = (e) => {
+  editor.setOption('boardSize', +e.target.value);
+  saveSettings();
+};
 
 const clampSize = (v) => Math.max(1, Math.min(300, Math.round(+v) || 1));
 
@@ -377,6 +384,25 @@ for (const id of optIds) $(id).addEventListener('input', onOptionChange);
 for (const id of ['opt-removebg', 'opt-cleanup', 'opt-dither', 'opt-lock']) $(id).addEventListener('change', onOptionChange);
 
 $('btn-convert').onclick = () => runConvert('push');
+
+// 恢复默认参数：尺寸和色卡保持不变，其余转换参数回到页面初始值
+const RESET_IDS = ['opt-maxcolors', 'opt-brightness', 'opt-contrast', 'opt-saturation', 'opt-bgtol',
+  'opt-removebg', 'opt-cleanup', 'opt-dither'];
+const optDefaults = Object.fromEntries(RESET_IDS.map((id) => {
+  const el = $(id);
+  return [id, el.type === 'checkbox' ? el.defaultChecked : el.defaultValue];
+}));
+$('btn-reset-opts').onclick = () => {
+  for (const [id, v] of Object.entries(optDefaults)) {
+    const el = $(id);
+    if (el.type === 'checkbox') el.checked = v;
+    else el.value = v;
+  }
+  syncOutputs();
+  saveSettings();
+  if (state.image) runConvert(state.live ? 'keep' : 'push');
+  toast(state.image ? '参数已恢复默认，并重新生成了像素图' : '参数已恢复默认');
+};
 
 $('opt-palette').addEventListener('change', (e) => {
   const pal = getPalette(e.target.value);
