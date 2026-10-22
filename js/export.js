@@ -220,7 +220,7 @@ export function downloadText(text, filename, type = 'application/json') {
   downloadBlob(new Blob([text], { type }), filename);
 }
 
-function downloadBlob(blob, filename) {
+export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

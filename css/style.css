@@ -15,7 +15,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #15151a;
     --panel: #1e1e25;
     --text: #ececf1;
@@ -30,7 +30,22 @@
   }
 }
 
+:root[data-theme="dark"] {
+  --bg: #15151a;
+  --panel: #1e1e25;
+  --text: #ececf1;
+  --muted: #9a9aa8;
+  --border: #2f2f39;
+  --accent: #6d92ff;
+  --accent-soft: #26304d;
+  --canvas-bg: #2a2a33;
+  --btn: #2a2a33;
+  --btn-hover: #34343f;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -256,6 +271,15 @@ dialog fieldset { border: 1px solid var(--border); border-radius: 8px; margin: 0
 dialog legend { color: var(--muted); font-size: 13px; padding: 0 4px; }
 dialog menu { display: flex; gap: 8px; padding: 0; margin: 14px 0 0; justify-content: flex-end; flex-wrap: wrap; }
 dialog menu .spacer { flex: 1; }
+.res-preview {
+  max-height: 55vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.res-preview img { display: block; margin: 0 auto; }
+#res-text, #open-text { margin-top: 10px; }
 code { background: var(--btn); padding: 1px 4px; border-radius: 4px; }
 
 .toast {

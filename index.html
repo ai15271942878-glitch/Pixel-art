@@ -285,6 +285,35 @@
     </form>
   </dialog>
 
+  <dialog id="dlg-result">
+    <form method="dialog">
+      <h3 id="res-title">导出</h3>
+      <div class="res-preview" id="res-preview"><img id="res-img" alt="导出预览"></div>
+      <textarea id="res-text" rows="8" readonly spellcheck="false"></textarea>
+      <p class="hint" id="res-hint"></p>
+      <menu>
+        <button type="button" id="btn-res-copy">复制内容</button>
+        <span class="spacer"></span>
+        <button value="close">关闭</button>
+        <button type="button" id="btn-res-download" class="primary">下载</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-open">
+    <form method="dialog">
+      <h3>打开项目</h3>
+      <p class="hint">选择之前保存的 .json 项目文件，或者把复制的项目内容粘贴到下面。</p>
+      <button type="button" id="btn-open-file" class="block">选择项目文件…</button>
+      <textarea id="open-text" rows="6" spellcheck="false" placeholder="在这里粘贴项目内容"></textarea>
+      <p class="error" id="open-error"></p>
+      <menu>
+        <button value="cancel">取消</button>
+        <button type="button" id="btn-open-text" class="primary">打开粘贴的内容</button>
+      </menu>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script type="module" src="js/main.js"></script>

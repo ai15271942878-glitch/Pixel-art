@@ -2,7 +2,7 @@ import { PALETTES, DEFAULT_PALETTE, preparePalette, parsePaletteText, paletteToT
 import { Editor } from './editor.js';
 import { convertImage } from './convert.js';
 import {
-  countCells, renderPNG, renderPattern, downloadCanvas, downloadText, serializeProject, parseProject,
+  countCells, renderPNG, renderPattern, downloadBlob, serializeProject, parseProject,
 } from './export.js';
 
 const $ = (id) => document.getElementById(id);
@@ -430,27 +430,91 @@ function projectName() {
 }
 
 function saveProject() {
-  downloadText(serializeProject(editor), projectName() + '.json');
+  showTextResult('保存项目', serializeProject(editor), projectName() + '.json', 'application/json',
+    '点「下载」保存成 .json 文件。下载没反应时，可以点「复制内容」保存到备忘录，之后在「打开项目」里粘贴。');
+}
+
+// ---------- 导出结果 ----------
+// 有些页面环境（例如嵌在别的网站里）会拦截下载，所以导出结果先展示出来，再提供下载、长按保存或复制
+
+let resultFile = null;
+
+function showResult(title, { blob, url, text }, filename, hint) {
+  if (resultFile?.url) URL.revokeObjectURL(resultFile.url);
+  resultFile = { blob, url, filename };
+  $('res-title').textContent = title;
+  $('res-preview').hidden = !url;
+  if (url) $('res-img').src = url;
+  $('res-text').hidden = text === undefined;
+  $('res-text').value = text ?? '';
+  $('btn-res-copy').hidden = text === undefined;
+  $('res-hint').textContent = hint;
+  $('dlg-result').showModal();
+}
+
+function showImageResult(title, canvas, filename) {
+  canvas.toBlob((blob) => {
+    showResult(title, { blob, url: URL.createObjectURL(blob) }, filename,
+      `${canvas.width} × ${canvas.height} 像素。点「下载」保存；下载没反应时，手机长按图片、电脑右键图片另存为。`);
+  }, 'image/png');
+}
+
+function showTextResult(title, text, filename, type, hint) {
+  showResult(title, { blob: new Blob([text], { type }), text }, filename, hint);
+}
+
+$('btn-res-download').onclick = () => {
+  if (resultFile) downloadBlob(resultFile.blob, resultFile.filename);
+};
+$('btn-res-copy').onclick = async () => {
+  const ta = $('res-text');
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    toast('已复制');
+  } catch {
+    ta.focus();
+    ta.select();
+    toast('已选中全部内容，请按 Ctrl+C 或长按复制');
+  }
+};
+
+function openProject(p) {
+  const palette = adoptPalette(p.palette);
+  fillPaletteSelect();
+  editor.load({ ...p, palette }, { history: 'push' });
+  state.live = false;
+  toast('项目已打开');
 }
 
 async function openProjectFile(file) {
   try {
-    const p = parseProject(await file.text());
-    const palette = adoptPalette(p.palette);
-    fillPaletteSelect();
-    editor.load({ ...p, palette }, { history: 'push' });
-    state.live = false;
-    toast('项目已打开');
+    openProject(parseProject(await file.text()));
   } catch (err) {
     toast('打开失败：' + err.message);
   }
 }
 
 $('btn-save').onclick = saveProject;
-$('btn-open').onclick = () => $('file-project').click();
+$('btn-open').onclick = () => {
+  $('open-text').value = '';
+  $('open-error').textContent = '';
+  $('dlg-open').showModal();
+};
+$('btn-open-file').onclick = () => $('file-project').click();
 $('file-project').onchange = (e) => {
-  if (e.target.files[0]) openProjectFile(e.target.files[0]);
+  if (e.target.files[0]) {
+    $('dlg-open').close();
+    openProjectFile(e.target.files[0]);
+  }
   e.target.value = '';
+};
+$('btn-open-text').onclick = () => {
+  try {
+    openProject(parseProject($('open-text').value.trim()));
+    $('dlg-open').close();
+  } catch (err) {
+    $('open-error').textContent = '内容无法识别：' + (err instanceof SyntaxError ? '不是完整的项目内容' : err.message);
+  }
 };
 
 // ---------- 导出 ----------
@@ -465,10 +529,10 @@ $('btn-exp-pattern').onclick = () => {
     legend: $('exp-legend').checked,
     boardSize: editor.opts.boardSize,
   });
-  downloadCanvas(c, projectName() + '-图纸.png');
+  showImageResult('拼豆图纸', c, projectName() + '-图纸.png');
 };
 $('btn-exp-png').onclick = () => {
-  downloadCanvas(renderPNG(editor, Math.max(1, Math.min(64, +$('exp-scale').value || 10))), projectName() + '.png');
+  showImageResult('像素图', renderPNG(editor, Math.max(1, Math.min(64, +$('exp-scale').value || 10))), projectName() + '.png');
 };
 $('btn-exp-csv').onclick = () => {
   const rows = [['色号', '名称', '色值', '数量']];
@@ -478,7 +542,8 @@ $('btn-exp-csv').onclick = () => {
     rows.push([c.code, c.name, c.hex, n]);
   }
   const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-  downloadText('﻿' + csv, projectName() + '-用料.csv', 'text/csv');
+  showTextResult('用料清单', '﻿' + csv, projectName() + '-用料.csv', 'text/csv',
+    '可以用 Excel 或 WPS 打开。下载没反应时，复制后粘贴到表格里。');
 };
 
 // ---------- 色卡导入对话框 ----------
@@ -489,6 +554,8 @@ $('btn-palette-manage').onclick = () => {
   $('pal-name').value = isCustom ? customPalettes[id].name : '';
   $('pal-text').value = isCustom ? paletteToText(editor.palette) : '';
   $('btn-pal-delete').hidden = !isCustom;
+  delete $('btn-pal-delete').dataset.armed;
+  $('btn-pal-delete').textContent = '删除当前自定义色卡';
   $('pal-error').textContent = '';
   $('dlg-palette').dataset.editing = isCustom ? id : '';
   $('dlg-palette').showModal();
@@ -520,7 +587,15 @@ $('btn-pal-save').onclick = () => {
 };
 $('btn-pal-delete').onclick = () => {
   const id = $('dlg-palette').dataset.editing;
-  if (!id || !confirm('确定删除这个自定义色卡吗？画布上的颜色会换成 MARD 221 色里最接近的颜色。')) return;
+  if (!id) return;
+  const btn = $('btn-pal-delete');
+  // 两次点击确认，避免误删
+  if (!btn.dataset.armed) {
+    btn.dataset.armed = '1';
+    btn.textContent = '再点一次确认删除';
+    $('pal-error').textContent = '删除后，画布上的颜色会换成 MARD 221 色里最接近的颜色。';
+    return;
+  }
   delete customPalettes[id];
   preparedCache.delete(id);
   store.set(KEY_PALETTES, customPalettes);

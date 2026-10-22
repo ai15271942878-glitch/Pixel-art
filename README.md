@@ -10,7 +10,18 @@
 npm start          # 等同于 node server.js，默认 http://localhost:8080
 ```
 
-也可以用任意静态服务器托管整个目录（例如 GitHub Pages）。
+也可以用任意静态服务器托管整个目录。
+
+## 分享给朋友（GitHub Pages，免费）
+
+整个项目是纯静态网页，可以直接用 GitHub Pages 发布：
+
+1. 把代码合并到 `main` 分支
+2. 打开仓库的 **Settings → Pages**
+3. **Source** 选 **Deploy from a branch**，**Branch** 选 `main`、目录选 `/ (root)`，点 **Save**
+4. 等一两分钟，页面顶部会出现网址：`https://ai15271942878-glitch.github.io/Pixel-art/`
+
+以后每次推送到 `main`，网页都会自动更新。每个人的作品和自定义色卡只保存在自己的浏览器里，不会互相看到。
 因为用了 ES Module，直接双击打开 `index.html` 时浏览器会拦截脚本，所以需要通过 http 访问。
 
 ## 功能

@@ -98,10 +98,12 @@ export class Editor {
     this._raf = 0;
     this._autoFit = true;
     this._readTheme();
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const onTheme = () => {
       this._readTheme();
       this.requestRender();
-    });
+    };
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme);
+    new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
     this._bindEvents();
     new ResizeObserver(() => this._resize()).observe(canvas.parentElement);
