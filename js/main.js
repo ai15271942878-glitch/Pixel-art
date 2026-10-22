@@ -284,13 +284,15 @@ for (const b of document.querySelectorAll('[data-shift]')) {
 
 // ---------- 图片导入与转换 ----------
 
-const optIds = ['opt-width', 'opt-height', 'opt-maxcolors', 'opt-brightness', 'opt-contrast', 'opt-saturation',
+const optIds = ['opt-width', 'opt-height', 'opt-mode', 'opt-edge', 'opt-maxcolors', 'opt-brightness', 'opt-contrast', 'opt-saturation',
   'opt-bgtol', 'opt-removebg', 'opt-cleanup', 'opt-dither', 'opt-lock'];
 
 function readOptions() {
   return {
     width: clampSize($('opt-width').value),
     height: clampSize($('opt-height').value),
+    mode: $('opt-mode').value,
+    edge: +$('opt-edge').value,
     maxColors: Math.max(0, +$('opt-maxcolors').value | 0),
     brightness: +$('opt-brightness').value,
     contrast: +$('opt-contrast').value,
@@ -330,8 +332,12 @@ function loadSettings() {
 }
 
 function syncOutputs() {
-  for (const k of ['brightness', 'contrast', 'saturation', 'bgtol']) $('out-' + k).textContent = $('opt-' + k).value;
+  for (const k of ['brightness', 'contrast', 'saturation', 'bgtol', 'edge']) $('out-' + k).textContent = $('opt-' + k).value;
   $('row-bgtol').hidden = !$('opt-removebg').checked;
+  // 插画模式按主色取色，不做抖动
+  const illustration = $('opt-mode').value === 'illustration';
+  $('row-edge').hidden = !illustration;
+  $('row-dither').hidden = illustration;
 }
 
 function autoHeight() {
@@ -385,8 +391,8 @@ for (const id of ['opt-removebg', 'opt-cleanup', 'opt-dither', 'opt-lock']) $(id
 
 $('btn-convert').onclick = () => runConvert('push');
 
-// 恢复默认参数：尺寸和色卡保持不变，其余转换参数回到页面初始值
-const RESET_IDS = ['opt-maxcolors', 'opt-brightness', 'opt-contrast', 'opt-saturation', 'opt-bgtol',
+// 恢复默认参数：尺寸、色卡和转换风格保持不变，其余转换参数回到页面初始值
+const RESET_IDS = ['opt-edge', 'opt-maxcolors', 'opt-brightness', 'opt-contrast', 'opt-saturation', 'opt-bgtol',
   'opt-removebg', 'opt-cleanup', 'opt-dither'];
 const optDefaults = Object.fromEntries(RESET_IDS.map((id) => {
   const el = $(id);

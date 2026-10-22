@@ -51,6 +51,89 @@ function sampleImage(img, W, H) {
   return out;
 }
 
+// 插画模式：每格取区域内占比最多的豆子颜色，并可保留较细的深色描边。
+// 先把原图的每个像素按 5 位/通道分桶，每个桶只算一次最接近的色卡颜色，再在格子内投票。
+function sampleDominant(img, W, H, colors, o) {
+  const iw = img.width, ih = img.height;
+  const scale = Math.min(1, Math.min(2400, Math.max(W, H) * 24) / Math.max(iw, ih));
+  const sw = Math.max(W, Math.round(iw * scale));
+  const sh = Math.max(H, Math.round(ih * scale));
+  const c = document.createElement('canvas');
+  c.width = sw;
+  c.height = sh;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, sw, sh);
+  const data = ctx.getImageData(0, 0, sw, sh).data;
+
+  const all = colors.map((_, i) => i);
+  const bucket = new Int16Array(32768).fill(-1);
+  const one = new Float32Array(4);
+  const nearestOf = (r, g, b) => {
+    const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    let k = bucket[key];
+    if (k < 0) {
+      one[0] = ((r >> 3) << 3) + 4;
+      one[1] = ((g >> 3) << 3) + 4;
+      one[2] = ((b >> 3) << 3) + 4;
+      adjust(one, o);
+      k = nearestIndex(rgbToLab(one[0], one[1], one[2]), colors, all);
+      bucket[key] = k;
+    }
+    return k;
+  };
+
+  // edge 0..100：0 关闭描边保留；越大，越少的深色占比就能胜出
+  const edge = o.edge ?? 50;
+  const minShare = 0.4 - 0.0035 * edge;
+  const n = W * H;
+  const cells = new Int16Array(n).fill(-1);
+  const empty = new Uint8Array(n);
+  const labs = new Array(n);
+  const votes = new Map();
+  for (let y = 0; y < H; y++) {
+    const y0 = Math.floor((y * sh) / H), y1 = Math.max(y0 + 1, Math.floor(((y + 1) * sh) / H));
+    for (let x = 0; x < W; x++) {
+      const x0 = Math.floor((x * sw) / W), x1 = Math.max(x0 + 1, Math.floor(((x + 1) * sw) / W));
+      votes.clear();
+      let clear = 0, total = 0;
+      for (let yy = y0; yy < y1 && yy < sh; yy++) {
+        let i = (yy * sw + x0) * 4;
+        for (let xx = x0; xx < x1 && xx < sw; xx++, i += 4) {
+          total++;
+          if (data[i + 3] < 128) {
+            clear++;
+            continue;
+          }
+          const k = nearestOf(data[i], data[i + 1], data[i + 2]);
+          votes.set(k, (votes.get(k) || 0) + 1);
+        }
+      }
+      const ci = y * W + x;
+      if (clear * 2 > total || !votes.size) {
+        empty[ci] = 1;
+        continue;
+      }
+      let win = -1, wc = 0;
+      for (const [k, v] of votes) if (v > wc) { wc = v; win = k; }
+      if (edge > 0) {
+        const opaque = total - clear;
+        let dark = -1, darkL = colors[win].lab[0] - 20;
+        for (const [k, v] of votes) {
+          if (v / opaque >= minShare && colors[k].lab[0] < darkL) {
+            darkL = colors[k].lab[0];
+            dark = k;
+          }
+        }
+        if (dark >= 0) win = dark;
+      }
+      cells[ci] = win;
+      labs[ci] = colors[win].lab;
+    }
+  }
+  return { cells, empty, labs };
+}
+
 function adjust(px, { brightness = 0, contrast = 0, saturation = 0 }) {
   if (!brightness && !contrast && !saturation) return;
   const bAdd = brightness * 2.55;
@@ -227,12 +310,25 @@ function cleanup(cells, W, H) {
 
 /**
  * @param {ImageBitmap|HTMLImageElement} img
- * @param {object} o  width, height, palette, maxColors, dither, removeBg, bgTolerance,
- *                    cleanup, brightness, contrast, saturation
+ * @param {object} o  width, height, palette, mode ('photo' | 'illustration'), edge, maxColors, dither,
+ *                    removeBg, bgTolerance, cleanup, brightness, contrast, saturation
  */
 export function convertImage(img, o) {
   const W = o.width, H = o.height, n = W * H;
   const colors = o.palette.colors;
+  const all = colors.map((_, i) => i);
+
+  if (o.mode === 'illustration') {
+    const { cells, empty, labs } = sampleDominant(img, W, H, colors, o);
+    if (o.removeBg) {
+      removeBackground(labs, empty, W, H, o.bgTolerance ?? 12);
+      for (let i = 0; i < n; i++) if (empty[i]) cells[i] = -1;
+    }
+    if (o.maxColors > 0) reduceColors(cells, labs, colors, o.maxColors);
+    if (o.cleanup) cleanup(cells, W, H);
+    return { width: W, height: H, cells };
+  }
+
   const px = sampleImage(img, W, H);
   adjust(px, o);
 
@@ -244,7 +340,6 @@ export function convertImage(img, o) {
   }
   if (o.removeBg) removeBackground(labs, empty, W, H, o.bgTolerance ?? 12);
 
-  const all = colors.map((_, i) => i);
   const cells = new Int16Array(n).fill(-1);
   const cache = new Map();
   for (let i = 0; i < n; i++) {
